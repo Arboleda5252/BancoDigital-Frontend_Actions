@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, Wallet, Upload, CheckCircle, ArrowRight } from 'lucide-react';
 import api from '../api/api';
 
+type UserData = {
+    id?: number | string;
+    name?: string;
+    email?: string;
+    [key: string]: unknown;
+};
+
 interface RegisterProps {
-    onSuccess: (userData: any) => void;
+    onSuccess: (userData: UserData) => void;
     onBack: () => void;
 }
 
@@ -44,7 +51,7 @@ const Register: React.FC<RegisterProps> = ({ onSuccess, onBack }) => {
             const { token } = response.data;
             sessionStorage.setItem('token', token); // Guardar token temporal para la verificación
             setStep(3); // Mostrar mensaje de éxito y aviso de correo
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError(err.response?.data || 'Error en el registro');
         } finally {
             setLoading(false);
