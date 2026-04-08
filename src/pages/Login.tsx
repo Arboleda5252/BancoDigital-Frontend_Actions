@@ -2,8 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, Mail, Wallet, AlertCircle } from 'lucide-react';
 import api from '../api/api';
 
+type User = {
+    id?: number | string;
+    name?: string;
+    email?: string;
+    [key: string]: unknown;
+};
+
+interface LoginApiResponse {
+    token: string;
+    user: User;
+}
+
 export interface LoginProps {
-    onLogin: (userData: any) => void;
+    onLogin: (userData: User) => void;
     onRegister: () => void;
     onForgot: () => void;
 }
@@ -30,7 +42,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onForgot }) => {
         setError('');
 
         try {
-            const response = await api.post('/auth/login', { email, password });
+            const response = await api.post<LoginApiResponse>('/auth/login', { email, password });
             const { token, user } = response.data;
 
             if (rememberMe) {
@@ -42,7 +54,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onForgot }) => {
             }
 
             onLogin(user);
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError(err.response?.data || 'Credenciales inválidas');
         } finally {
             setLoading(false);
