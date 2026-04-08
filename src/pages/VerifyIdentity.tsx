@@ -1,11 +1,19 @@
 import React, { useState, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { Camera, Upload, AlertCircle, ShieldCheck, CheckCircle } from 'lucide-react';
+import axios from 'axios';
 import api from '../api/api';
 
+type UserData = {
+    id?: number | string;
+    name?: string;
+    email?: string;
+    [key: string]: unknown;
+};
+
 interface VerifyIdentityProps {
-    user: any;
-    onVerified: (userData: any) => void;
+    user: UserData;
+    onVerified: (userData: UserData) => void;
 }
 
 const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => {
@@ -22,13 +30,13 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
     const videoConstraints = {
         width: 1280,
         height: 720,
-        facingMode: "user"
+        facingMode: 'user',
     };
 
-    const handleCameraError = (err: any) => {
-        console.error("Camera Error:", err);
+    const handleCameraError = (err: unknown) => {
+        console.error('Camera Error:', err);
         setCameraError(true);
-        setError("No se pudo acceder a la cámara. Asegúrate de dar permisos en el navegador.");
+        setError('No se pudo acceder a la cámara. Asegúrate de dar permisos en el navegador.');
     };
 
     const capture = () => {
@@ -40,7 +48,7 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files![0];
+        const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             setFile(selectedFile);
             const reader = new FileReader();
@@ -55,7 +63,7 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
     const handleSubmit = async () => {
         setLoading(true);
         setError('');
-        
+
         try {
             const data = new FormData();
             if (file) {
@@ -67,11 +75,17 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
             }
 
             const response = await api.post('/auth/verify-identity', data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
+
             onVerified(response.data);
-        } catch (err: any) {
-            setError(err.response?.data || 'Error en la verificación');
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                const responseData = err.response?.data;
+                setError(typeof responseData === 'string' ? responseData : 'Error en la verificación');
+            } else {
+                setError('Error en la verificación');
+            }
         } finally {
             setLoading(false);
         }
@@ -97,15 +111,21 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
                         </div>
                     </div>
 
-                    {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5" />
-                        {error}
-                    </div>}
+                    {error && (
+                        <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5" />
+                            {error}
+                        </div>
+                    )}
 
                     {mode === 'CHOOSING' && !image && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <button
-                                onClick={() => { setMode('CAMERA'); setCameraError(false); setCameraReady(false); }}
+                                onClick={() => {
+                                    setMode('CAMERA');
+                                    setCameraError(false);
+                                    setCameraReady(false);
+                                }}
                                 className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-slate-200 rounded-3xl hover:border-blue-400 hover:bg-slate-50 transition-all group"
                             >
                                 <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
@@ -150,9 +170,14 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
                                 />
                             </div>
                             <div className="flex gap-4 w-full">
-                                <button onClick={() => setMode('CHOOSING')} className="flex-1 py-4 border border-slate-200 rounded-xl font-bold text-slate-600">Cancelar</button>
-                                <button 
-                                    onClick={capture} 
+                                <button
+                                    onClick={() => setMode('CHOOSING')}
+                                    className="flex-1 py-4 border border-slate-200 rounded-xl font-bold text-slate-600"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={capture}
                                     disabled={!cameraReady}
                                     className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 disabled:opacity-50"
                                 >
@@ -164,10 +189,26 @@ const VerifyIdentity: React.FC<VerifyIdentityProps> = ({ user, onVerified }) => 
 
                     {image && (
                         <div className="flex flex-col items-center">
-                            <img src={image} alt="Selfie" className="w-64 h-64 object-cover rounded-full border-4 border-blue-600 mb-6 shadow-xl" />
+                            <img
+                                src={image}
+                                alt="Selfie"
+                                className="w-64 h-64 object-cover rounded-full border-4 border-blue-600 mb-6 shadow-xl"
+                            />
                             <div className="flex gap-4 w-full">
-                                <button onClick={() => { setImage(null); setFile(null); }} className="flex-1 py-4 border border-slate-200 rounded-xl font-bold text-slate-600">Repetir</button>
-                                <button onClick={handleSubmit} disabled={loading} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setImage(null);
+                                        setFile(null);
+                                    }}
+                                    className="flex-1 py-4 border border-slate-200 rounded-xl font-bold text-slate-600"
+                                >
+                                    Repetir
+                                </button>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={loading}
+                                    className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
                                     {loading ? 'Subiendo...' : 'Confirmar Verificación'} <CheckCircle className="w-5 h-5 ml-2" />
                                 </button>
                             </div>
