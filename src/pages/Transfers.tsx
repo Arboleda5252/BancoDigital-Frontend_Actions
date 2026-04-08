@@ -1,14 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Send, CheckCircle, AlertCircle, Wallet, Globe, Landmark, ChevronDown, UserPlus, Users } from 'lucide-react';
+import {
+    ArrowLeft,
+    Send,
+    CheckCircle,
+    AlertCircle,
+    Wallet,
+    Globe,
+    Landmark,
+    ChevronDown,
+    UserPlus,
+    Users,
+} from 'lucide-react';
+import axios from 'axios';
 import api from '../api/api';
 
 interface TransfersProps {
     onBack: () => void;
 }
 
+interface Account {
+    id: number;
+    type: 'SAVINGS' | 'CHECKING' | string;
+    accountNumber: string;
+    balance: number;
+}
+
+interface ExternalAccount {
+    id: number;
+    bankName: string;
+    accountNumber: string;
+    holderName: string;
+}
+
+interface LinkData {
+    bankName: string;
+    accountNumber: string;
+    holderName: string;
+}
+
 const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
-    const [accounts, setAccounts] = useState<any[]>([]);
-    const [externalAccounts, setExternalAccounts] = useState<any[]>([]);
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [externalAccounts, setExternalAccounts] = useState<ExternalAccount[]>([]);
     const [fromAccount, setFromAccount] = useState('');
     const [toAccount, setToAccount] = useState('');
     const [amount, setAmount] = useState('');
@@ -17,65 +49,85 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
     const [error, setError] = useState('');
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showSelection, setShowSelection] = useState(false);
-    const [linkData, setLinkData] = useState({ bankName: '', accountNumber: '', holderName: '' });
+    const [linkData, setLinkData] = useState<LinkData>({
+        bankName: '',
+        accountNumber: '',
+        holderName: '',
+    });
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 const [accRes, extRes] = await Promise.all([
-                    api.get('/accounts/me'),
-                    api.get('/external-accounts')
+                    api.get<Account[]>('/accounts/me'),
+                    api.get<ExternalAccount[]>('/external-accounts'),
                 ]);
+
                 setAccounts(accRes.data);
                 setExternalAccounts(extRes.data);
-                if (accRes.data.length > 0) setFromAccount(accRes.data[0].accountNumber);
-            } catch (err) {
+
+                if (accRes.data.length > 0) {
+                    setFromAccount(accRes.data[0].accountNumber);
+                }
+            } catch (err: unknown) {
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         };
+
         fetchData();
     }, []);
 
     const fetchExternal = async () => {
         try {
-            const res = await api.get('/external-accounts');
+            const res = await api.get<ExternalAccount[]>('/external-accounts');
             setExternalAccounts(res.data);
-        } catch(err) { console.error(err); }
+        } catch (err: unknown) {
+            console.error(err);
+        }
     };
 
     const handleLinkBank = async () => {
         if (!linkData.bankName || !linkData.accountNumber || !linkData.holderName) {
-            alert("Completa todos los campos");
+            alert('Completa todos los campos');
             return;
         }
+
         try {
             await api.post('/external-accounts', linkData);
             setShowLinkModal(false);
             setLinkData({ bankName: '', accountNumber: '', holderName: '' });
             fetchExternal();
-        } catch (err) { alert("Error al vincular"); }
+        } catch {
+            alert('Error al vincular');
+        }
     };
 
     const formatAccountNumber = (num: string) => {
         return num.replace(/(\d{4})/g, '$1 ').trim();
     };
 
-    const handleTransfer = async (e: React.FormEvent) => {
+    const handleTransfer = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+
         try {
             await api.post('/transactions/transfer', {
                 fromAccountNumber: fromAccount,
                 toAccountNumber: toAccount,
                 amount: parseFloat(amount),
-                description: 'Transferencia BancoDigital'
+                description: 'Transferencia BancoDigital',
             });
             setSuccess(true);
-        } catch (err: any) {
-            setError(err.response?.data || 'Error en la transferencia');
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                const data = err.response?.data;
+                setError(typeof data === 'string' ? data : 'Error en la transferencia');
+            } else {
+                setError('Error en la transferencia');
+            }
         } finally {
             setLoading(false);
         }
@@ -90,7 +142,10 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                     </div>
                     <h2 className="text-3xl font-black text-slate-900 mb-3 italic">¡Transferencia Exitosa!</h2>
                     <p className="text-slate-500 mb-10 font-medium">El dinero ha sido enviado correctamente.</p>
-                    <button onClick={onBack} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-blue-200 hover:scale-[1.02] active:scale-95 transition-all">
+                    <button
+                        onClick={onBack}
+                        className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-blue-200 hover:scale-[1.02] active:scale-95 transition-all"
+                    >
                         Volver al Inicio
                     </button>
                 </div>
@@ -107,7 +162,7 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                     </button>
                     <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Enviar Dinero</h1>
                 </div>
-                <button 
+                <button
                     onClick={() => setShowLinkModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                 >
@@ -126,20 +181,22 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                     )}
 
                     <form onSubmit={handleTransfer} className="space-y-8 bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
-                        {/* From Account */}
                         <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-4">Origen de fondos</label>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-4">
+                                Origen de fondos
+                            </label>
                             <div className="relative">
                                 <Wallet className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                <select 
+                                <select
                                     className="w-full pl-14 pr-12 py-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-blue-600 focus:bg-white outline-none transition-all font-black text-slate-900 appearance-none cursor-pointer"
                                     value={fromAccount}
-                                    onChange={e => setFromAccount(e.target.value)}
+                                    onChange={(e) => setFromAccount(e.target.value)}
                                     required
                                 >
-                                    {accounts.map(acc => (
+                                    {accounts.map((acc) => (
                                         <option key={acc.id} value={acc.accountNumber}>
-                                            {acc.type === 'SAVINGS' ? 'Ahorros' : 'Corriente'} ({formatAccountNumber(acc.accountNumber)}) — ${acc.balance.toLocaleString()}
+                                            {acc.type === 'SAVINGS' ? 'Ahorros' : 'Corriente'} ({formatAccountNumber(acc.accountNumber)}) — $
+                                            {acc.balance.toLocaleString()}
                                         </option>
                                     ))}
                                 </select>
@@ -147,11 +204,10 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                             </div>
                         </div>
 
-                        {/* To Account */}
                         <div className="relative">
                             <div className="flex items-center justify-between mb-3 px-4">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cuenta destino</label>
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setShowSelection(!showSelection)}
                                     className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1"
@@ -160,12 +216,15 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                                     {showSelection ? 'Escribir número' : 'Mis vinculados'}
                                 </button>
                             </div>
+
                             {showSelection ? (
                                 <div className="space-y-2">
                                     {externalAccounts.length === 0 ? (
-                                        <p className="text-center py-4 bg-slate-50 rounded-2xl text-xs font-bold text-slate-400 italic">No tienes cuentas vinculadas.</p>
+                                        <p className="text-center py-4 bg-slate-50 rounded-2xl text-xs font-bold text-slate-400 italic">
+                                            No tienes cuentas vinculadas.
+                                        </p>
                                     ) : (
-                                        externalAccounts.map(ext => (
+                                        externalAccounts.map((ext) => (
                                             <button
                                                 key={ext.id}
                                                 type="button"
@@ -181,7 +240,9 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                                                     </div>
                                                     <div className="text-left">
                                                         <p className="font-black text-slate-900 text-sm">{ext.holderName}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{ext.bankName} • {formatAccountNumber(ext.accountNumber)}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                            {ext.bankName} • {formatAccountNumber(ext.accountNumber)}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </button>
@@ -189,12 +250,12 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                                     )}
                                 </div>
                             ) : (
-                                <input 
+                                <input
                                     type="text"
                                     placeholder="Número de 16 dígitos"
                                     className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-blue-600 focus:bg-white outline-none transition-all font-mono font-bold text-lg tracking-widest text-blue-700"
                                     value={toAccount}
-                                    onChange={e => {
+                                    onChange={(e) => {
                                         const val = e.target.value.replace(/\D/g, '').slice(0, 16);
                                         setToAccount(val);
                                     }}
@@ -203,24 +264,25 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                             )}
                         </div>
 
-                        {/* Amount */}
                         <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-4">Monto a enviar</label>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-4">
+                                Monto a enviar
+                            </label>
                             <div className="relative">
                                 <span className="absolute left-8 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300">$</span>
-                                <input 
+                                <input
                                     type="number"
                                     step="0.01"
                                     placeholder="0.00"
                                     className="w-full pl-14 pr-8 py-7 bg-slate-50 border-2 border-slate-50 rounded-[2rem] focus:border-blue-600 focus:bg-white outline-none transition-all font-black text-5xl text-blue-600 tracking-tighter"
                                     value={amount}
-                                    onChange={e => setAmount(e.target.value)}
+                                    onChange={(e) => setAmount(e.target.value)}
                                     required
                                 />
                             </div>
                         </div>
 
-                        <button 
+                        <button
                             type="submit"
                             disabled={loading || !toAccount || !amount}
                             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-[2rem] py-6 transition-all shadow-2xl shadow-blue-200 text-lg font-black flex items-center justify-center gap-4 active:scale-[0.98] mt-10"
@@ -232,10 +294,9 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                 </div>
             </div>
 
-            {/* Link Modal */}
             {showLinkModal && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-6 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-md rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="text-center mb-8">
                             <div className="w-20 h-20 bg-emerald-50 rounded-[2rem] flex items-center justify-center text-emerald-600 mx-auto mb-4">
                                 <Globe className="w-10 h-10" />
@@ -243,32 +304,44 @@ const Transfers: React.FC<TransfersProps> = ({ onBack }) => {
                             <h3 className="text-3xl font-black text-slate-900 italic">Vincular Banco</h3>
                             <p className="text-slate-400 font-medium mt-1">Añade un favorito para transferir</p>
                         </div>
+
                         <div className="space-y-4 mb-10">
-                            <input 
+                            <input
                                 placeholder="Nombre Entidad (Bancolombia, etc.)"
                                 className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-emerald-500 outline-none font-bold italic"
                                 value={linkData.bankName}
-                                onChange={e => setLinkData({...linkData, bankName: e.target.value})}
+                                onChange={(e) => setLinkData({ ...linkData, bankName: e.target.value })}
                             />
-                            <input 
+                            <input
                                 placeholder="Número de Cuenta (16 dígitos)"
                                 className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-emerald-500 outline-none font-mono font-bold"
                                 value={linkData.accountNumber}
-                                onChange={e => {
+                                onChange={(e) => {
                                     const val = e.target.value.replace(/\D/g, '').slice(0, 16);
-                                    setLinkData({...linkData, accountNumber: val});
+                                    setLinkData({ ...linkData, accountNumber: val });
                                 }}
                             />
-                            <input 
+                            <input
                                 placeholder="Nombre del Titular"
                                 className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-emerald-500 outline-none font-bold italic"
                                 value={linkData.holderName}
-                                onChange={e => setLinkData({...linkData, holderName: e.target.value})}
+                                onChange={(e) => setLinkData({ ...linkData, holderName: e.target.value })}
                             />
                         </div>
+
                         <div className="flex gap-4">
-                            <button onClick={() => setShowLinkModal(false)} className="flex-1 py-5 text-slate-400 font-black hover:bg-slate-50 rounded-[1.5rem] transition-all">Cancelar</button>
-                            <button onClick={handleLinkBank} className="flex-[2] bg-emerald-600 text-white py-5 rounded-[1.5rem] font-black shadow-xl shadow-emerald-200 transition-all active:scale-95">Vincular Ahora</button>
+                            <button
+                                onClick={() => setShowLinkModal(false)}
+                                className="flex-1 py-5 text-slate-400 font-black hover:bg-slate-50 rounded-[1.5rem] transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLinkBank}
+                                className="flex-[2] bg-emerald-600 text-white py-5 rounded-[1.5rem] font-black shadow-xl shadow-emerald-200 transition-all active:scale-95"
+                            >
+                                Vincular Ahora
+                            </button>
                         </div>
                     </div>
                 </div>
